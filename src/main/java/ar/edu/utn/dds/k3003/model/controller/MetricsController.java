@@ -5,10 +5,10 @@ import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 public class MetricsController {
 
-    private static String TOKEN;
+    private final String token;
 
     public MetricsController(){
-        TOKEN = System.getenv("TOKEN");
+        this.token = System.getenv("TOKEN");
     }
 
     public void crear(Context context, PrometheusMeterRegistry registry){
@@ -17,7 +17,7 @@ public class MetricsController {
         // configurado
         var auth = context.header("Authorization");
 
-        if (auth != null && auth.intern() == "Bearer " + TOKEN) {
+        if (auth != null && auth.intern() == "Bearer " + token) {
             context.contentType("text/plain; version=0.0.4")
                     .result(registry.scrape());
         } else {
@@ -25,7 +25,7 @@ public class MetricsController {
             // desautorizado
             // este paso es necesario para que Grafana online
             // permita el acceso
-            context.status(401).json("unauthorized access");
+            context.status(401).json("unauthorized access " + this.token);
         }
     }
 

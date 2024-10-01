@@ -87,7 +87,6 @@ public class WebApp {
 
         System.out.println("starting up the server");
 
-
         // agregar aquí cualquier tag que aplique a todas las métrivas de la app
         // (e.g. EC2 region, stack, instance id, server group)
         registry.config().commonTags("app", "metrics-sample");
