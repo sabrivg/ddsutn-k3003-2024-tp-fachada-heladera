@@ -116,8 +116,6 @@ public class WebApp {
         // Javalin
          return Javalin.create(config -> { config.registerPlugin(micrometerPlugin); })
                 .start(8080);
-
-
     }
 
     // Configurar el ObjectMapper

@@ -17,7 +17,9 @@ public class MetricsController {
         // configurado
         var auth = context.header("Authorization");
 
-        if (auth != null && auth.intern() == "Bearer " + token) {
+        System.out.println(auth);
+
+        if (auth != null && auth.intern().equals("Bearer " + this.token)) {
             context.contentType("text/plain; version=0.0.4")
                     .result(registry.scrape());
         } else {
@@ -25,7 +27,7 @@ public class MetricsController {
             // desautorizado
             // este paso es necesario para que Grafana online
             // permita el acceso
-            context.status(401).json("unauthorized access " + this.token);
+            context.status(401).json("unauthorized access");
         }
     }
 
