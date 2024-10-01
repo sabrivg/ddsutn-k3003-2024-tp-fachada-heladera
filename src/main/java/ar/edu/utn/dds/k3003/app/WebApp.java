@@ -25,11 +25,11 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 public class WebApp {
-
+    private static final String TOKEN = "token";
     public static void main(String[] args) {
         // crea un registro para nuestras métricas basadas en Prometheus
         final var registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
-        String TOKEN = System.getenv("TOKEN_METRICS");
+
         // Iniciar el worker en un hilo separado
         iniciarWorkerSensorTemperaturas();
 
