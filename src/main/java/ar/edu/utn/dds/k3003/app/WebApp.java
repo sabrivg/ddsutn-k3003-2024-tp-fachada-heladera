@@ -2,6 +2,7 @@ package ar.edu.utn.dds.k3003.app;
 
 import ar.edu.utn.dds.k3003.clientes.ViandasProxy;
 import ar.edu.utn.dds.k3003.model.controller.HeladeraController;
+import ar.edu.utn.dds.k3003.model.controller.MetricsController;
 import ar.edu.utn.dds.k3003.model.controller.TemperaturaController;
 import ar.edu.utn.dds.k3003.facades.dtos.Constants;
 import ar.edu.utn.dds.k3003.clientes.workers.MensajeListener;
@@ -25,10 +26,10 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 public class WebApp {
-    private static final String TOKEN = "token";
+
     public static void main(String[] args) {
-        // crea un registro para nuestras métricas basadas en Prometheus
-        final var registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+
+        final PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
 
         // Iniciar el worker en un hilo separado
         iniciarWorkerSensorTemperaturas();
@@ -41,6 +42,7 @@ public class WebApp {
 
         var heladeraController = new HeladeraController(fachada);
         var temperaturaController = new TemperaturaController(fachada);
+        var metricsController = new MetricsController();
 
         // Definir las rutas de la API
         app.post("/heladeras", heladeraController::agregar);
@@ -54,23 +56,10 @@ public class WebApp {
         // agregamos una ruta para hacer polling de las métrivas con el
         // handler que toma llos resultadose scrapear la registry de
         // métricas
-        app.get("/metrics",
-                ctx -> {
-                    // chequear el header de authorization y chequear el token bearer
-                    // configurado
-                    var auth = ctx.header("Authorization");
+        app.get("/metrics", context -> {
+            metricsController.crear(context, registry);
+        });
 
-                    if (auth != null && auth.intern() == "Bearer " + TOKEN) {
-                        ctx.contentType("text/plain; version=0.0.4")
-                                .result(registry.scrape());
-                    } else {
-                        // si el token no es el apropiado, devolver error,
-                        // desautorizado
-                        // este paso es necesario para que Grafana online
-                        // permita el acceso
-                        ctx.status(401).json("unauthorized access");
-                    }
-                });
     }
 
     // Iniciar el worker de RabbitMQ
