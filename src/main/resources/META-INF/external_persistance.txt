@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence xmlns="http://xmlns.jcp.org/xml/ns/persistence" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence
+http://xmlns.jcp.org/xml/ns/persistence/persistence_2_2.xsd" version="2.2">
+    <persistence-unit name="tpdb" transaction-type="RESOURCE_LOCAL">
+        <provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
+
+        <class>ar.edu.utn.dds.k3003.model.Heladera</class>
+        <class>ar.edu.utn.dds.k3003.model.Temperatura</class>
+
+        <properties>
+            <property name="javax.persistence.jdbc.url" value="jdbc:postgresql://dpg-cplu24ij1k6c739rjdt0-a.oregon-postgres.render.com/tpdb_z4he"/>
+            <property name="javax.persistence.jdbc.user" value="tpdb_z4he_user"/>
+            <property name="javax.persistence.jdbc.password" value="ECnA188IFfS5IzyQMrCtNE4DY90UE4lo"/>
+            <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver"/>
+
+            <property name="hibernate.hbm2ddl.auto" value="update"/>
+            <property name="hibernate.connection.pool_size" value="1"/>
+            <property name="hibernate.show_sql" value="true"/>
+
+            <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQL95Dialect"/>
+            <property name="hibernate.default_schema" value="public"/>
+            <property name="hibernate.archive.autodetection" value="class" />
+            <property name="hibernate.format_sql" value="true" />
+            <property name="use_sql_comments" value="true" />
+        </properties>
+    </persistence-unit>
+</persistence>
