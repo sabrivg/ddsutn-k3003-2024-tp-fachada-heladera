@@ -2,7 +2,6 @@ package ar.edu.utn.dds.k3003.app;
 
 import ar.edu.utn.dds.k3003.clientes.ViandasProxy;
 import ar.edu.utn.dds.k3003.model.controller.HeladeraController;
-import ar.edu.utn.dds.k3003.model.controller.MetricsController;
 import ar.edu.utn.dds.k3003.model.controller.TemperaturaController;
 import ar.edu.utn.dds.k3003.facades.dtos.Constants;
 import ar.edu.utn.dds.k3003.clientes.workers.MensajeListener;
@@ -12,11 +11,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.javalin.Javalin;
 import io.javalin.micrometer.MicrometerPlugin;
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
-import io.micrometer.core.instrument.binder.jvm.JvmHeapPressureMetrics;
-import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
-import io.micrometer.core.instrument.binder.system.FileDescriptorMetrics;
+import io.micrometer.core.instrument.binder.jvm.*;
 import io.micrometer.core.instrument.binder.system.ProcessorMetrics;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
@@ -27,39 +22,35 @@ import java.util.TimeZone;
 
 public class WebApp {
 
-    public static void main(String[] args) {
+    private static final Fachada fachada;
+    private static final HeladeraController heladeraController;
+    private static final TemperaturaController temperaturaController;
 
-        final PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+    static {
+        fachada = crearFachada(createObjectMapper());
+        heladeraController = new HeladeraController(fachada);
+        temperaturaController = new TemperaturaController(fachada);
+    }
+
+    public static void main(String[] args) {
 
         // Iniciar el worker en un hilo separado
         iniciarWorkerSensorTemperaturas();
 
         // Iniciar la API
-        Javalin app = iniciarApiJavalin(registry);
-
-        var objectMapper = createObjectMapper();
-        var fachada = crearFachada(objectMapper);
-
-        var heladeraController = new HeladeraController(fachada);
-        var temperaturaController = new TemperaturaController(fachada);
-        var metricsController = new MetricsController();
+        Javalin app = iniciarApiJavalin();
 
         // Definir las rutas de la API
+        definirRutas(app);
+    }
+
+    private static void definirRutas(Javalin app) {
         app.post("/heladeras", heladeraController::agregar);
         app.get("/heladeras/{id}", heladeraController::obtener);
-        //app.post("/temperaturas", temperaturaController::agregar);
         app.get("/heladeras/{id}/temperaturas", temperaturaController::obtener);
         app.post("/depositos", heladeraController::depositar);
         app.post("/retiros", heladeraController::retirar);
         app.get("/cleanup", heladeraController::cleanup);
-
-        // agregamos una ruta para hacer polling de las métrivas con el
-        // handler que toma llos resultadose scrapear la registry de
-        // métricas
-        app.get("/metrics", context -> {
-            metricsController.crear(context, registry);
-        });
-
     }
 
     // Iniciar el worker de RabbitMQ
@@ -69,7 +60,6 @@ public class WebApp {
                 MensajeListener.iniciar(); // Inicia el worker de RabbitMQ
             } catch (Exception e) {
                 System.err.println("Error al iniciar el worker de RabbitMQ: " + e.getMessage());
-                e.printStackTrace();
             }
         });
         workerThread.start(); // Iniciar el hilo del worker
@@ -82,10 +72,12 @@ public class WebApp {
         return fachada;
     }
 
-    // Inicializar la API
-    private static Javalin iniciarApiJavalin(PrometheusMeterRegistry registry) {
+    // Inicializar la API con las métricas de Prometheus
+    private static Javalin iniciarApiJavalin() {
 
         System.out.println("starting up the server");
+
+        PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
 
         // agregar aquí cualquier tag que aplique a todas las métrivas de la app
         // (e.g. EC2 region, stack, instance id, server group)
@@ -93,29 +85,34 @@ public class WebApp {
 
         // agregamos a nuestro reigstro de métricas todo lo relacionado a infra/tech
         // de la instancia y JVM
-        try (var jvmGcMetrics = new JvmGcMetrics();
-             var jvmHeapPressureMetrics = new JvmHeapPressureMetrics()) {
-            jvmGcMetrics.bindTo(registry);
-            jvmHeapPressureMetrics.bindTo(registry);
-        }
+        new ClassLoaderMetrics().bindTo(registry);
         new JvmMemoryMetrics().bindTo(registry);
+        new JvmGcMetrics().bindTo(registry);
         new ProcessorMetrics().bindTo(registry);
-        new FileDescriptorMetrics().bindTo(registry);
-
-        // agregamos métricas custom de nuestro dominio
-        Gauge.builder("myapp_random", () -> (int)(Math.random() * 1000))
-                .description("Random number from My-Application.")
-                .strongReference(true)
-                .register(registry);
+        new JvmThreadMetrics().bindTo(registry);
 
         // seteamos el registro dentro de la config de Micrometer
-        final var micrometerPlugin =
-                new MicrometerPlugin(config -> config.registry = registry);
+        final var micrometerPlugin = new MicrometerPlugin(config -> config.registry = registry);
 
         // registramos el plugin de Micrometer dentro de la config de la app de
         // Javalin
-         return Javalin.create(config -> { config.registerPlugin(micrometerPlugin); })
-                .start(8080);
+        Javalin app = Javalin.create(config -> { config.registerPlugin(micrometerPlugin); }).start(8080);
+
+        // Exponer las métricas en la ruta /metrics
+        app.get("/metrics", context -> {
+            // chequear el header de authorization y chequear el token bearer
+            // configurado
+            var auth = context.header("Authorization");
+
+            if (auth != null && auth.intern().equals("Bearer " + System.getenv("TOKEN"))) {
+                context.contentType("text/plain; version=0.0.4; charset=utf-8")
+                        .result(registry.scrape());
+            } else {
+                context.status(401).json("unauthorized access");
+            }
+        });
+
+        return app;
     }
 
     // Configurar el ObjectMapper
@@ -133,4 +130,5 @@ public class WebApp {
         sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
         objectMapper.setDateFormat(sdf);
     }
+
 }

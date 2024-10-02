@@ -15,8 +15,6 @@
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-
-
     <!-- Dependencies versions -->
     <javalin.version>6.1.3</javalin.version>
     <junit.version>5.10.2</junit.version>
