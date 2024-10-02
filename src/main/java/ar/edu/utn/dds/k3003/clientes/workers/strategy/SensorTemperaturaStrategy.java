@@ -8,6 +8,8 @@ import ar.edu.utn.dds.k3003.repositories.TemperaturaRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Metrics;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -58,14 +60,20 @@ public class SensorTemperaturaStrategy implements MensajeStrategy {
 
     // Registrar o actualizar la métrica para una heladera específica
     private void actualizarMetricaHeladera(Long heladeraId, double nuevaTemperatura) {
+
         // Si la heladera ya tiene una métrica registrada, actualizamos la temperatura
+
         temperaturasPorHeladera.computeIfAbsent(heladeraId, id -> {
             // Crear y registrar una nueva métrica si no existe para esta heladera
             AtomicReference<Double> temperaturaRef = new AtomicReference<>(nuevaTemperatura);
+
+            // agregamos métricas custom de nuestro dominio
             Gauge.builder("heladera.temperatura.actual", temperaturaRef, AtomicReference::get)
                     .description("Temperatura actual de la heladera " + heladeraId)
                     .tag("heladeraId", String.valueOf(heladeraId))  // Añadir el ID como etiqueta
-                    .register(Metrics.globalRegistry);
+                    .strongReference(true)
+                    .register(new PrometheusMeterRegistry(PrometheusConfig.DEFAULT));
+
             return temperaturaRef;
         }).set(nuevaTemperatura);  // Actualizamos la temperatura si ya existe
     }
