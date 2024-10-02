@@ -3,7 +3,6 @@ package ar.edu.utn.dds.k3003.clientes.workers;
 import ar.edu.utn.dds.k3003.clientes.workers.strategy.MensajeStrategy;
 import ar.edu.utn.dds.k3003.clientes.workers.strategy.MensajeStrategyFactory;
 import com.rabbitmq.client.*;
-import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 import java.io.IOException;
 import java.util.Map;
@@ -12,13 +11,13 @@ public class MensajeListener extends DefaultConsumer {
 
     private final MensajeStrategyFactory mensajeStrategyFactory;
 
-    private MensajeListener(Channel channel, PrometheusMeterRegistry registry) {
+    private MensajeListener(Channel channel) {
         super(channel);
-        this.mensajeStrategyFactory = new MensajeStrategyFactory(registry);
+        this.mensajeStrategyFactory = new MensajeStrategyFactory();
     }
 
     // Inicializa la instancia del SensorTemperatura y la conexión
-    public static void iniciar(PrometheusMeterRegistry registry) throws Exception {
+    public static void iniciar() throws Exception {
         // Establecer la conexión con CloudAMQP usando las variables de entorno
         Map<String, String> env = System.getenv();
         ConnectionFactory factory = new ConnectionFactory();
@@ -35,7 +34,7 @@ public class MensajeListener extends DefaultConsumer {
         Channel channel = connection.createChannel();
 
         // Crear una nueva instancia de SensorTemperatura
-        MensajeListener sensorTemperatura = new MensajeListener(channel, registry);
+        MensajeListener sensorTemperatura = new MensajeListener(channel);
         sensorTemperatura.iniciarConsumo(colaSensorTemperaturas); // Iniciar el consumo de mensajes
 
 //        MensajeListener prueba = new MensajeListener(channel);

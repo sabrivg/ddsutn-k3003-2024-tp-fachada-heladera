@@ -26,12 +26,14 @@ public class WebApp {
     private static final HeladeraController heladeraController;
     private static final TemperaturaController temperaturaController;
     private static final PrometheusMeterRegistry registry;
+    private static final MetricsController metricsController;
 
     static {
         fachada = crearFachada(createObjectMapper());
         heladeraController = new HeladeraController(fachada);
         temperaturaController = new TemperaturaController(fachada);
         registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+        metricsController = new MetricsController();
     }
 
     public static void main(String[] args) {
@@ -42,7 +44,7 @@ public class WebApp {
         // Iniciar la API
         Javalin app = iniciarApiJavalin();
 
-        // Definir las rutas de la API
+        // Definir las rutas
         definirRutas(app);
     }
 
@@ -55,25 +57,14 @@ public class WebApp {
         app.get("/cleanup", heladeraController::cleanup);
 
         // Exponer las métricas en la ruta /metrics
-        app.get("/metrics", context -> {
-            // chequear el header de authorization y chequear el token bearer
-            // configurado
-            var auth = context.header("Authorization");
-
-            if (auth != null && auth.intern().equals("Bearer " + System.getenv("TOKEN"))) {
-                context.contentType("text/plain; version=0.0.4; charset=utf-8")
-                        .result(registry.scrape());
-            } else {
-                context.status(401).json("unauthorized access");
-            }
-        });
+        app.get("/metrics", context -> {metricsController.obtener(context, registry);});
     }
 
     // Iniciar el worker de RabbitMQ
     private static void iniciarWorkerSensorTemperaturas() {
         Thread workerThread = new Thread(() -> {
             try {
-                MensajeListener.iniciar(registry); // Inicia el worker de RabbitMQ
+                MensajeListener.iniciar(); // Inicia el worker de RabbitMQ
             } catch (Exception e) {
                 System.err.println("Error al iniciar el worker de RabbitMQ: " + e.getMessage());
             }
