@@ -25,11 +25,13 @@ public class WebApp {
     private static final Fachada fachada;
     private static final HeladeraController heladeraController;
     private static final TemperaturaController temperaturaController;
+    private static final PrometheusMeterRegistry registry;
 
     static {
         fachada = crearFachada(createObjectMapper());
         heladeraController = new HeladeraController(fachada);
         temperaturaController = new TemperaturaController(fachada);
+        registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
     }
 
     public static void main(String[] args) {
@@ -51,13 +53,27 @@ public class WebApp {
         app.post("/depositos", heladeraController::depositar);
         app.post("/retiros", heladeraController::retirar);
         app.get("/cleanup", heladeraController::cleanup);
+
+        // Exponer las métricas en la ruta /metrics
+        app.get("/metrics", context -> {
+            // chequear el header de authorization y chequear el token bearer
+            // configurado
+            var auth = context.header("Authorization");
+
+            if (auth != null && auth.intern().equals("Bearer " + System.getenv("TOKEN"))) {
+                context.contentType("text/plain; version=0.0.4; charset=utf-8")
+                        .result(registry.scrape());
+            } else {
+                context.status(401).json("unauthorized access");
+            }
+        });
     }
 
     // Iniciar el worker de RabbitMQ
     private static void iniciarWorkerSensorTemperaturas() {
         Thread workerThread = new Thread(() -> {
             try {
-                MensajeListener.iniciar(); // Inicia el worker de RabbitMQ
+                MensajeListener.iniciar(registry); // Inicia el worker de RabbitMQ
             } catch (Exception e) {
                 System.err.println("Error al iniciar el worker de RabbitMQ: " + e.getMessage());
             }
@@ -77,11 +93,9 @@ public class WebApp {
 
         System.out.println("starting up the server");
 
-        PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
-
         // agregar aquí cualquier tag que aplique a todas las métrivas de la app
         // (e.g. EC2 region, stack, instance id, server group)
-        registry.config().commonTags("app", "metrics-sample");
+        registry.config().commonTags("app", "fachada_heladera");
 
         // agregamos a nuestro reigstro de métricas todo lo relacionado a infra/tech
         // de la instancia y JVM
@@ -96,23 +110,7 @@ public class WebApp {
 
         // registramos el plugin de Micrometer dentro de la config de la app de
         // Javalin
-        Javalin app = Javalin.create(config -> { config.registerPlugin(micrometerPlugin); }).start(8080);
-
-        // Exponer las métricas en la ruta /metrics
-        app.get("/metrics", context -> {
-            // chequear el header de authorization y chequear el token bearer
-            // configurado
-            var auth = context.header("Authorization");
-
-            if (auth != null && auth.intern().equals("Bearer " + System.getenv("TOKEN"))) {
-                context.contentType("text/plain; version=0.0.4; charset=utf-8")
-                        .result(registry.scrape());
-            } else {
-                context.status(401).json("unauthorized access");
-            }
-        });
-
-        return app;
+        return Javalin.create(config -> { config.registerPlugin(micrometerPlugin); }).start(8080);
     }
 
     // Configurar el ObjectMapper

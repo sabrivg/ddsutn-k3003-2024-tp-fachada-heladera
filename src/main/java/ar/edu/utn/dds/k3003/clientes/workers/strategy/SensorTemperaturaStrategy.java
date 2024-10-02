@@ -7,7 +7,6 @@ import ar.edu.utn.dds.k3003.repositories.HeladerasRepository;
 import ar.edu.utn.dds.k3003.repositories.TemperaturaRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.Metrics;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
@@ -25,11 +24,13 @@ public class SensorTemperaturaStrategy implements MensajeStrategy {
 
     // Un mapa que contendrá las métricas de temperatura de cada heladera
     private static final ConcurrentHashMap<Long, AtomicReference<Double>> temperaturasPorHeladera = new ConcurrentHashMap<>();
+    private final PrometheusMeterRegistry registry;
 
-    public SensorTemperaturaStrategy() {
+    public SensorTemperaturaStrategy(PrometheusMeterRegistry registry) {
         this.temperaturaRepository = new TemperaturaRepository();
         this.heladerasRepository = new HeladerasRepository();
         this.objectMapper = new ObjectMapper();
+        this.registry = registry;
     }
 
     @Override
@@ -72,7 +73,7 @@ public class SensorTemperaturaStrategy implements MensajeStrategy {
                     .description("Temperatura actual de la heladera " + heladeraId)
                     .tag("heladeraId", String.valueOf(heladeraId))  // Añadir el ID como etiqueta
                     .strongReference(true)
-                    .register(new PrometheusMeterRegistry(PrometheusConfig.DEFAULT));
+                    .register(registry);
 
             return temperaturaRef;
         }).set(nuevaTemperatura);  // Actualizamos la temperatura si ya existe
