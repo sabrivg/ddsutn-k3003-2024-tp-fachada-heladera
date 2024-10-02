@@ -2,9 +2,11 @@ package ar.edu.utn.dds.k3003.app;
 
 import ar.edu.utn.dds.k3003.clientes.ViandasProxy;
 import ar.edu.utn.dds.k3003.model.controller.HeladeraController;
+import ar.edu.utn.dds.k3003.model.controller.MetricsController;
 import ar.edu.utn.dds.k3003.model.controller.TemperaturaController;
 import ar.edu.utn.dds.k3003.facades.dtos.Constants;
 import ar.edu.utn.dds.k3003.clientes.workers.MensajeListener;
+import ar.edu.utn.dds.k3003.utils.MetricsRegistry;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -13,8 +15,6 @@ import io.javalin.Javalin;
 import io.javalin.micrometer.MicrometerPlugin;
 import io.micrometer.core.instrument.binder.jvm.*;
 import io.micrometer.core.instrument.binder.system.ProcessorMetrics;
-import io.micrometer.prometheusmetrics.PrometheusConfig;
-import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 import java.text.SimpleDateFormat;
 import java.util.Locale;
@@ -25,14 +25,12 @@ public class WebApp {
     private static final Fachada fachada;
     private static final HeladeraController heladeraController;
     private static final TemperaturaController temperaturaController;
-    private static final PrometheusMeterRegistry registry;
     private static final MetricsController metricsController;
 
     static {
         fachada = crearFachada(createObjectMapper());
         heladeraController = new HeladeraController(fachada);
         temperaturaController = new TemperaturaController(fachada);
-        registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         metricsController = new MetricsController();
     }
 
@@ -57,7 +55,7 @@ public class WebApp {
         app.get("/cleanup", heladeraController::cleanup);
 
         // Exponer las métricas en la ruta /metrics
-        app.get("/metrics", context -> {metricsController.obtener(context, registry);});
+        app.get("/metrics", metricsController::obtener);
     }
 
     // Iniciar el worker de RabbitMQ
@@ -86,6 +84,9 @@ public class WebApp {
 
         // agregar aquí cualquier tag que aplique a todas las métrivas de la app
         // (e.g. EC2 region, stack, instance id, server group)
+
+        var registry = MetricsRegistry.getRegistry();
+
         registry.config().commonTags("app", "fachada_heladera");
 
         // agregamos a nuestro reigstro de métricas todo lo relacionado a infra/tech
@@ -101,7 +102,7 @@ public class WebApp {
 
         // registramos el plugin de Micrometer dentro de la config de la app de
         // Javalin
-        return Javalin.create(config -> { config.registerPlugin(micrometerPlugin); }).start(8080);
+        return Javalin.create(config -> config.registerPlugin(micrometerPlugin)).start(8080);
     }
 
     // Configurar el ObjectMapper

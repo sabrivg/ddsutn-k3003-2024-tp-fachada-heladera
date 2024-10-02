@@ -5,9 +5,9 @@ import ar.edu.utn.dds.k3003.model.Heladera;
 import ar.edu.utn.dds.k3003.model.Temperatura;
 import ar.edu.utn.dds.k3003.repositories.HeladerasRepository;
 import ar.edu.utn.dds.k3003.repositories.TemperaturaRepository;
+import ar.edu.utn.dds.k3003.utils.MetricsRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.Metrics;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -58,20 +58,13 @@ public class SensorTemperaturaStrategy implements MensajeStrategy {
 
     // Registrar o actualizar la métrica para una heladera específica
     private void actualizarMetricaHeladera(Long heladeraId, double nuevaTemperatura) {
-
-        // Si la heladera ya tiene una métrica registrada, actualizamos la temperatura
-
         temperaturasPorHeladera.computeIfAbsent(heladeraId, id -> {
             // Crear y registrar una nueva métrica si no existe para esta heladera
             AtomicReference<Double> temperaturaRef = new AtomicReference<>(nuevaTemperatura);
-
-            // agregamos métricas custom de nuestro dominio
             Gauge.builder("heladera.temperatura.actual", temperaturaRef, AtomicReference::get)
                     .description("Temperatura actual de la heladera " + heladeraId)
-                    .tag("heladeraId", String.valueOf(heladeraId))  // Añadir el ID como etiqueta
-                    .strongReference(true)
-                    .register(Metrics.globalRegistry);
-
+                    .tag("heladeraId", String.valueOf(heladeraId))
+                    .register(MetricsRegistry.getRegistry());
             return temperaturaRef;
         }).set(nuevaTemperatura);  // Actualizamos la temperatura si ya existe
     }
