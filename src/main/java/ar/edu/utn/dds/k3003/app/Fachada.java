@@ -91,7 +91,7 @@ public class Fachada implements FachadaHeladeras {
                 .orElseThrow(() -> new NoSuchElementException("Heladera no encontrada id: " + temperaturaDTO.getHeladeraId()));
 
         Temperatura temperatura=new Temperatura(temperaturaDTO.getTemperatura(),heladera, LocalDateTime.now());
-        temperatura=this.temperaturaRepository.save(temperatura);
+        this.temperaturaRepository.save(temperatura);
     }
 
     @Override public List<TemperaturaDTO> obtenerTemperaturas(Integer heladeraId){
